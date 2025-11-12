@@ -1,14 +1,14 @@
 {
   "files": {
     "main.css": "/school-test-platform/static/css/main.24cf619f.css",
-    "main.js": "/school-test-platform/static/js/main.55ebfe2d.js",
+    "main.js": "/school-test-platform/static/js/main.b3f58799.js",
     "static/media/pupil.jpg": "/school-test-platform/static/media/pupil.65bdf22e0a227eda1e5a.jpg",
     "index.html": "/school-test-platform/index.html",
     "main.24cf619f.css.map": "/school-test-platform/static/css/main.24cf619f.css.map",
-    "main.55ebfe2d.js.map": "/school-test-platform/static/js/main.55ebfe2d.js.map"
+    "main.b3f58799.js.map": "/school-test-platform/static/js/main.b3f58799.js.map"
   },
   "entrypoints": [
     "static/css/main.24cf619f.css",
-    "static/js/main.55ebfe2d.js"
+    "static/js/main.b3f58799.js"
   ]
 }
