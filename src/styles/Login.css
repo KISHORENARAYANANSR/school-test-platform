@@ -1,0 +1,653 @@
+/* ===================================
+   LOGIN PAGE STYLES
+   The Pupil Saveetha Eco School
+   =================================== */
+
+/* Container */
+.login-page-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2D5F3F 0%, #1B4332 50%, #0D2818 100%);
+  padding: 40px 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ===================================
+   FLOATING LEAVES ANIMATION
+   =================================== */
+
+.login-leaves-container {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-leaf {
+  position: absolute;
+  font-size: 24px;
+  opacity: 0.3;
+  color: #4CAF50;
+}
+
+.login-leaf-1 {
+  top: 10%;
+  left: 10%;
+  animation: loginFloat1 20s infinite ease-in-out;
+}
+
+.login-leaf-2 {
+  top: 20%;
+  right: 15%;
+  animation: loginFloat2 18s infinite ease-in-out;
+}
+
+.login-leaf-3 {
+  top: 60%;
+  left: 8%;
+  animation: loginFloat3 22s infinite ease-in-out;
+}
+
+.login-leaf-4 {
+  top: 70%;
+  right: 12%;
+  animation: loginFloat4 19s infinite ease-in-out;
+}
+
+.login-leaf-5 {
+  top: 30%;
+  left: 85%;
+  animation: loginFloat5 21s infinite ease-in-out;
+}
+
+.login-leaf-6 {
+  top: 50%;
+  left: 5%;
+  animation: loginFloat6 20s infinite ease-in-out;
+}
+
+.login-leaf-7 {
+  top: 80%;
+  left: 80%;
+  animation: loginFloat7 23s infinite ease-in-out;
+}
+
+.login-leaf-8 {
+  top: 15%;
+  left: 50%;
+  animation: loginFloat8 17s infinite ease-in-out;
+}
+
+/* ===================================
+   HEADER SECTION (LOGO & SCHOOL NAME)
+   =================================== */
+
+.login-header-section {
+  text-align: center;
+  margin-bottom: 30px;
+  animation: loginFadeIn 0.8s ease-out;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.login-logo-container {
+  animation: loginLogoFloat 3s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.login-school-logo {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.login-school-name {
+  font-size: 42px;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.login-school-subtitle {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 500;
+  margin: -5px 0 0 0;
+  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.2);
+  font-style: italic;
+}
+
+/* ===================================
+   QUOTE SECTION
+   =================================== */
+
+.login-quote-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 50px;
+}
+
+.login-quote-icon {
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.login-quote {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.95);
+  font-style: italic;
+  font-weight: 400;
+  max-width: 500px;
+  animation: loginQuoteChange 4s ease-in-out;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+  margin: 0;
+}
+
+/* ===================================
+   LOGIN CARD
+   =================================== */
+
+.login-card {
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  max-width: 440px;
+  overflow: hidden;
+  animation: loginSlideUp 0.6s ease-out;
+  z-index: 1;
+}
+
+.login-card-header {
+  background: linear-gradient(135deg, #34A853 0%, #2D5F3F 100%);
+  padding: 35px 30px 30px;
+  text-align: center;
+  color: white;
+}
+
+.login-icon-circle {
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  backdrop-filter: blur(10px);
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.login-icon-circle svg {
+  fill: white;
+}
+
+.login-card-title {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.login-card-subtitle {
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.95;
+  font-weight: 400;
+}
+
+/* ===================================
+   FORM ELEMENTS
+   =================================== */
+
+.login-form-container {
+  padding: 35px 30px 30px;
+}
+
+.login-input-group {
+  margin-bottom: 24px;
+}
+
+.login-input-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.login-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-input-icon {
+  position: absolute;
+  left: 14px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  color: #9ca3af;
+}
+
+.login-input-icon svg {
+  fill: #9ca3af;
+}
+
+.login-input-field {
+  width: 100%;
+  padding: 14px 14px 14px 48px;
+  font-size: 15px;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  background: #ffffff;
+  color: #1f2937;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.login-input-field:focus {
+  outline: none;
+  border-color: #34A853;
+  box-shadow: 0 0 0 3px rgba(52, 168, 83, 0.1);
+}
+
+.login-input-field:disabled {
+  background: #f9fafb;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.login-input-field::placeholder {
+  color: #9ca3af;
+}
+
+.login-toggle-password {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  color: #9ca3af;
+}
+
+.login-toggle-password:hover:not(:disabled) {
+  color: #34A853;
+  background: rgba(52, 168, 83, 0.1);
+}
+
+.login-toggle-password:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.login-toggle-password svg {
+  fill: currentColor;
+}
+
+/* ===================================
+   ERROR MESSAGE
+   =================================== */
+
+.login-error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #dc2626;
+  font-size: 14px;
+  margin-bottom: 20px;
+  animation: loginShake 0.4s ease;
+}
+
+.login-error-message svg {
+  flex-shrink: 0;
+  fill: #dc2626;
+}
+
+/* ===================================
+   LOGIN BUTTON
+   =================================== */
+
+.login-submit-button {
+  width: 100%;
+  padding: 15px;
+  background: linear-gradient(135deg, #34A853 0%, #2D5F3F 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(52, 168, 83, 0.4);
+  font-family: inherit;
+}
+
+.login-submit-button:hover:not(.disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(52, 168, 83, 0.5);
+}
+
+.login-submit-button:active:not(.disabled) {
+  transform: translateY(0);
+}
+
+.login-submit-button.disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.login-submit-button .login-arrow {
+  transition: transform 0.3s ease;
+}
+
+.login-submit-button:hover:not(.disabled) .login-arrow {
+  transform: translateX(4px);
+}
+
+.login-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: loginSpin 0.8s linear infinite;
+}
+
+/* ===================================
+   FOOTER
+   =================================== */
+
+.login-card-footer {
+  padding: 20px 30px 30px;
+  text-align: center;
+  border-top: 1px solid #f3f4f6;
+}
+
+.login-footer-text {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* ===================================
+   BOTTOM MESSAGE
+   =================================== */
+
+.login-bottom-message {
+  margin-top: 25px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-weight: 500;
+  animation: loginFadeIn 1s ease-out 0.3s both;
+  z-index: 1;
+}
+
+.login-eco-icon {
+  display: flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.login-eco-icon svg {
+  fill: currentColor;
+}
+
+.login-eco-text {
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* ===================================
+   ANIMATIONS
+   =================================== */
+
+@keyframes loginSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes loginFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes loginSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loginShake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-8px);
+  }
+  75% {
+    transform: translateX(8px);
+  }
+}
+
+@keyframes loginQuoteChange {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes loginFloat1 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(100px, -100px) rotate(180deg);
+  }
+}
+
+@keyframes loginFloat2 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-80px, 120px) rotate(-180deg);
+  }
+}
+
+@keyframes loginFloat3 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(120px, 80px) rotate(180deg);
+  }
+}
+
+@keyframes loginFloat4 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-100px, -90px) rotate(-180deg);
+  }
+}
+
+@keyframes loginFloat5 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(90px, -120px) rotate(180deg);
+  }
+}
+
+@keyframes loginFloat6 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-110px, 100px) rotate(-180deg);
+  }
+}
+
+@keyframes loginFloat7 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(110px, 110px) rotate(180deg);
+  }
+}
+
+@keyframes loginFloat8 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-90px, -110px) rotate(-180deg);
+  }
+}
+
+/* ===================================
+   RESPONSIVE DESIGN
+   =================================== */
+
+@media (max-width: 768px) {
+  .login-school-name {
+    font-size: 32px;
+  }
+
+  .login-school-subtitle {
+    font-size: 18px;
+  }
+
+  .login-quote {
+    font-size: 14px;
+    max-width: 90%;
+  }
+
+  .login-card {
+    max-width: 100%;
+  }
+
+  .login-school-logo {
+    width: 65px;
+    height: 65px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-page-container {
+    padding: 20px 15px;
+  }
+
+  .login-header-section {
+    margin-bottom: 20px;
+  }
+
+  .login-school-logo {
+    width: 55px;
+    height: 55px;
+  }
+
+  .login-school-name {
+    font-size: 28px;
+  }
+
+  .login-school-subtitle {
+    font-size: 14px;
+  }
+
+  .login-quote {
+    font-size: 13px;
+  }
+
+  .login-card {
+    border-radius: 20px;
+  }
+
+  .login-card-header {
+    padding: 25px 20px 20px;
+  }
+
+  .login-card-title {
+    font-size: 24px;
+  }
+
+  .login-form-container {
+    padding: 25px 20px 20px;
+  }
+
+  .login-card-footer {
+    padding: 18px 20px 25px;
+  }
+
+  .login-bottom-message {
+    font-size: 12px;
+  }
+}
