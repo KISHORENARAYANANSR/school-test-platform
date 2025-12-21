@@ -15,7 +15,8 @@ import {
   Key,
   Settings,
   LogOut,
-  Leaf
+  Leaf,
+  DoorOpen
 } from "lucide-react";
 import { db } from "../firebase";
 import "../styles/AdminDashboard.css";
@@ -104,8 +105,9 @@ function AdminDashboard() {
   const [teacherCount, setTeacherCount] = useState(0);
   const [studentCount, setStudentCount] = useState(0);
   const [departmentCount, setDepartmentCount] = useState(0);
+  const [classroomCount, setClassroomCount] = useState(0);
 
-  // Fetch teacher, student, and department counts dynamically
+  // Fetch teacher, student, department, and classroom counts dynamically
   useEffect(() => {
     const fetchCounts = async () => {
       try {
@@ -126,6 +128,10 @@ function AdminDashboard() {
         // Fetch students
         const studentSnap = await getDocs(collection(db, "students"));
         setStudentCount(studentSnap.size);
+
+        // Fetch classrooms (assuming you have a 'classes' collection)
+        const classSnap = await getDocs(collection(db, "classes"));
+        setClassroomCount(classSnap.size);
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -174,11 +180,11 @@ function AdminDashboard() {
             icon={Building2}
           />
           <StatCard
-            title="Monthly Reports"
-            value="27"
-            subtitle="Generated This Month"
-            gradient="linear-gradient(135deg, #fb923c, #fbbf24)"
-            icon={FileText}
+            title="Classrooms"
+            value={classroomCount}
+            subtitle={`${classroomCount} Active Classes`}
+            gradient="linear-gradient(135deg, #8b5cf6, #a78bfa)"
+            icon={DoorOpen}
           />
         </div>
 

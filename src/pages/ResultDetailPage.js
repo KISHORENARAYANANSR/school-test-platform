@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -27,6 +27,20 @@ const ResultDetailsPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!window.katex) {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js';
+      script.async = true;
+      document.head.appendChild(script);
+
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
+      document.head.appendChild(link);
+    }
+  }, []);
+
+  useEffect(() => {
     const data = sessionStorage.getItem("studentData");
     if (!data) {
       navigate("/");
@@ -36,7 +50,6 @@ const ResultDetailsPage = () => {
     const student = JSON.parse(data);
     setStudentData(student);
 
-    // Check if result data was passed via state
     if (location.state?.resultData) {
       setResultData(location.state.resultData);
       setLoading(false);
@@ -49,7 +62,6 @@ const ResultDetailsPage = () => {
     try {
       setLoading(true);
 
-      // Fetch submission
       const submissionRef = doc(db, "submissions", submissionId);
       const submissionDoc = await getDoc(submissionRef);
 
@@ -61,7 +73,6 @@ const ResultDetailsPage = () => {
 
       const submission = submissionDoc.data();
 
-      // Fetch test details
       const testRef = doc(db, "tests", submission.testId);
       const testDoc = await getDoc(testRef);
 
@@ -74,7 +85,6 @@ const ResultDetailsPage = () => {
       const testData = testDoc.data();
       const questions = testData.questions || [];
 
-      // Process responses
       let correctCount = 0;
       let totalMarks = 0;
       let obtainedMarks = 0;
@@ -88,18 +98,26 @@ const ResultDetailsPage = () => {
             const correctAnswer = question.correctAnswer;
             const userAnswer = response.userAnswer;
             const marks = question.marks || 1;
+            const questionType = question.questionType || "mcq";
 
             totalMarks += marks;
 
-            // Check if answer is correct - handle both number and string comparisons
             let isCorrect = false;
             if (userAnswer !== null && userAnswer !== undefined) {
-              if (typeof correctAnswer === 'number' && typeof userAnswer === 'number') {
-                isCorrect = correctAnswer === userAnswer;
-              } else if (typeof correctAnswer === 'string' && typeof userAnswer === 'string') {
-                isCorrect = correctAnswer.trim().toLowerCase() === userAnswer.trim().toLowerCase();
+              if (questionType === "text") {
+                // Text comparison - case insensitive
+                const userStr = String(userAnswer).trim().toLowerCase();
+                const correctStr = String(correctAnswer).trim().toLowerCase();
+                isCorrect = userStr === correctStr;
               } else {
-                isCorrect = String(correctAnswer) === String(userAnswer);
+                // MCQ comparison
+                if (typeof correctAnswer === 'number' && typeof userAnswer === 'number') {
+                  isCorrect = correctAnswer === userAnswer;
+                } else if (typeof correctAnswer === 'string' && typeof userAnswer === 'string') {
+                  isCorrect = correctAnswer.trim().toLowerCase() === userAnswer.trim().toLowerCase();
+                } else {
+                  isCorrect = String(correctAnswer) === String(userAnswer);
+                }
               }
             }
 
@@ -111,6 +129,7 @@ const ResultDetailsPage = () => {
             processedResponses.push({
               questionIndex: index,
               questionText: question.questionText || question.question,
+              questionType: questionType,
               options: question.options || [],
               userAnswer: userAnswer,
               correctAnswer: correctAnswer,
@@ -150,24 +169,72 @@ const ResultDetailsPage = () => {
     }
   };
 
+  const ContentRenderer = ({ content }) => {
+    const contentRef = useRef(null);
+
+    useEffect(() => {
+      if (contentRef.current && content?.type === 'latex' && window.katex) {
+        try {
+          let latex = content.data.replace(/`/g, '').replace(/\$/g, '');
+          window.katex.render(latex, contentRef.current, {
+            throwOnError: false,
+            displayMode: true,
+          });
+        } catch (err) {
+          console.error('KaTeX rendering error:', err);
+        }
+      }
+    }, [content]);
+
+    if (!content) {
+      return <div className="content-text">No content</div>;
+    }
+
+    if (content.type === 'combined') {
+      return (
+        <div className="content-combined">
+          <ContentRenderer content={content.text} />
+          {content.formula && content.formula.data && (
+            <ContentRenderer content={content.formula} />
+          )}
+        </div>
+      );
+    }
+
+    if (content.type === 'image') {
+      return (
+        <div className="content-image">
+          <img src={content.data} alt="Question content" style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }} />
+        </div>
+      );
+    }
+
+    if (content.type === 'latex') {
+      return (
+        <div className="content-latex" ref={contentRef}>
+          {content.data}
+        </div>
+      );
+    }
+
+    const textContent = typeof content === 'string' ? content : content.data || '';
+    return <div className="content-text">{textContent}</div>;
+  };
+
   const formatDate = (timestamp) => {
     if (!timestamp) return "N/A";
     
     let date;
-    // Handle Firestore Timestamp
     if (timestamp.toDate && typeof timestamp.toDate === 'function') {
       date = timestamp.toDate();
     } 
-    // Handle Date object
     else if (timestamp instanceof Date) {
       date = timestamp;
     } 
-    // Handle timestamp number or string
     else {
       date = new Date(timestamp);
     }
     
-    // Check if date is valid
     if (isNaN(date.getTime())) {
       return "N/A";
     }
@@ -363,63 +430,82 @@ const ResultDetailsPage = () => {
                 </div>
 
                 <div className="question-text">
-                  {response.questionText}
+                  <ContentRenderer content={response.questionText} />
                 </div>
 
-                <div className="options-list">
-                  {response.options && response.options.map((option, optIndex) => {
-                    const isUserAnswer = response.userAnswer === optIndex;
-                    const isCorrectAnswer = response.correctAnswer === optIndex;
-                    const isWrongAnswer = isUserAnswer && !response.isCorrect;
-
-                    let optionClass = "option-item";
-                    if (isCorrectAnswer) {
-                      optionClass += " correct-option";
-                    }
-                    if (isWrongAnswer) {
-                      optionClass += " wrong-option";
-                    }
-                    if (isUserAnswer && !isWrongAnswer) {
-                      optionClass += " user-correct-option";
-                    }
-
-                    return (
-                      <div key={optIndex} className={optionClass}>
-                        <div className="option-indicator">
-                          {String.fromCharCode(65 + optIndex)}
-                        </div>
-                        <div className="option-content">
-                          <div className="option-text">{option}</div>
-                          {isCorrectAnswer && (
-                            <span className="option-badge correct-badge">
-                              <CheckCircle size={14} />
-                              Correct Answer
-                            </span>
-                          )}
-                          {isWrongAnswer && (
-                            <span className="option-badge wrong-badge">
-                              <XCircle size={14} />
-                              Your Answer
-                            </span>
-                          )}
-                          {isUserAnswer && isCorrectAnswer && (
-                            <span className="option-badge your-correct-badge">
-                              <CheckCircle size={14} />
-                              Your Correct Answer
-                            </span>
-                          )}
-                        </div>
+                {response.questionType === "text" ? (
+                  <div className="review-text-answer">
+                    <div className="text-answer-box">
+                      <strong>Your Answer:</strong>
+                      <span className={response.isCorrect ? "correct-text" : "incorrect-text"}>
+                        {response.userAnswer || "Not Answered"}
+                      </span>
+                    </div>
+                    {!response.isCorrect && (
+                      <div className="text-answer-box correct-answer-box">
+                        <strong>Correct Answer:</strong>
+                        <span className="correct-text">{response.correctAnswer}</span>
                       </div>
-                    );
-                  })}
-                </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="options-list">
+                    {response.options && response.options.map((option, optIndex) => {
+                      const isUserAnswer = response.userAnswer === optIndex;
+                      const isCorrectAnswer = response.correctAnswer === optIndex;
+                      const isWrongAnswer = isUserAnswer && !response.isCorrect;
 
-                {response.userAnswer === null || response.userAnswer === undefined ? (
+                      let optionClass = "option-item";
+                      if (isCorrectAnswer) {
+                        optionClass += " correct-option";
+                      }
+                      if (isWrongAnswer) {
+                        optionClass += " wrong-option";
+                      }
+                      if (isUserAnswer && !isWrongAnswer) {
+                        optionClass += " user-correct-option";
+                      }
+
+                      return (
+                        <div key={optIndex} className={optionClass}>
+                          <div className="option-indicator">
+                            {String.fromCharCode(65 + optIndex)}
+                          </div>
+                          <div className="option-content">
+                            <div className="option-text">
+                              <ContentRenderer content={option} />
+                            </div>
+                            {isCorrectAnswer && (
+                              <span className="option-badge correct-badge">
+                                <CheckCircle size={14} />
+                                Correct Answer
+                              </span>
+                            )}
+                            {isWrongAnswer && (
+                              <span className="option-badge wrong-badge">
+                                <XCircle size={14} />
+                                Your Answer
+                              </span>
+                            )}
+                            {isUserAnswer && isCorrectAnswer && (
+                              <span className="option-badge your-correct-badge">
+                                <CheckCircle size={14} />
+                                Your Correct Answer
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {(response.userAnswer === null || response.userAnswer === undefined) && response.questionType === "mcq" && (
                   <div className="not-answered-alert">
                     <AlertCircle size={16} />
                     <span>You didn't answer this question</span>
                   </div>
-                ) : null}
+                )}
               </div>
             ))}
           </div>

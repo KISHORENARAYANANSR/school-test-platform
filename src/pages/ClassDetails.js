@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { db } from "../firebase";
 import { collection, doc, getDoc, addDoc, serverTimestamp } from "firebase/firestore";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { ArrowLeft, FileText, CheckCircle, XCircle, Upload, Users } from "lucide-react";
 import "../styles/ClassDetails.css";
 
@@ -10,16 +10,17 @@ const ClassDetails = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPopup, setShowPopup] = useState(false);
-  
-  // Test creation states
+
   const [testName, setTestName] = useState("");
   const [testDuration, setTestDuration] = useState(30);
   const [negativeMarking, setNegativeMarking] = useState(false);
   const [negativeMarks, setNegativeMarks] = useState(0.25);
+
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [excelFile, setExcelFile] = useState(null);
   const [uploadError, setUploadError] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     const fetchClassData = async () => {
@@ -32,7 +33,6 @@ const ClassDetails = () => {
           const data = classSnap.data();
           setClassData({ id: classSnap.id, ...data });
 
-          // Fetch student details
           if (data.students && data.students.length > 0) {
             const studentPromises = data.students.map(async (studentId) => {
               const studentRef = doc(db, "students", studentId);
@@ -55,135 +55,292 @@ const ClassDetails = () => {
     fetchClassData();
   }, []);
 
-  const handleFileUpload = (e) => {
+  const compressBase64Image = (base64Data, maxWidth = 600, quality = 0.6) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      };
+      img.onerror = () => {
+        console.error("Failed to load image for compression");
+        resolve(base64Data);
+      };
+      img.src = base64Data;
+    });
+  };
+
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
+    if (!file) return;
+
     setExcelFile(file);
     setUploadError("");
-
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        try {
-          const data = new Uint8Array(event.target.result);
-          const workbook = XLSX.read(data, { type: "array" });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-          // Validate and parse questions
-          const parsedQuestions = jsonData.map((row, index) => {
-            // Check for required fields
-            if (!row.question || !row.option1 || !row.option2 || !row.answer) {
-              throw new Error(`Row ${index + 2}: Missing required fields (question, option1, option2, or answer)`);
-            }
-
-            // Collect all options
-            const options = [
-              row.option1,
-              row.option2,
-              row.option3 || "",
-              row.option4 || "",
-            ].filter(opt => opt !== "");
-
-            // Normalize the correct answer - convert to option index (0, 1, 2, 3)
-            const answerString = String(row.answer).trim().toLowerCase();
-            let correctAnswerIndex;
-
-            // Check if answer is "option1", "option2", etc.
-            if (answerString.startsWith('option')) {
-              const optionNum = parseInt(answerString.replace('option', ''));
-              correctAnswerIndex = optionNum - 1; // Convert to 0-based index
-            } 
-            // Check if answer is "a", "b", "c", "d"
-            else if (['a', 'b', 'c', 'd'].includes(answerString)) {
-              correctAnswerIndex = answerString.charCodeAt(0) - 97; // 'a' = 0, 'b' = 1, etc.
-            }
-            // Check if answer is a number (1, 2, 3, 4)
-            else if (!isNaN(answerString) && parseInt(answerString) >= 1 && parseInt(answerString) <= 4) {
-              correctAnswerIndex = parseInt(answerString) - 1;
-            }
-            // Try to match the answer text with one of the options
-            else {
-              correctAnswerIndex = options.findIndex(
-                opt => String(opt).trim().toLowerCase() === answerString
-              );
-              
-              if (correctAnswerIndex === -1) {
-                throw new Error(
-                  `Row ${index + 2}: Answer "${row.answer}" doesn't match any option. ` +
-                  `Use format: "option1", "a", "1", or exact option text.`
-                );
-              }
-            }
-
-            // Validate that the index is within bounds
-            if (correctAnswerIndex < 0 || correctAnswerIndex >= options.length) {
-              throw new Error(
-                `Row ${index + 2}: Invalid answer index. Expected 0-${options.length - 1}, got ${correctAnswerIndex}`
-              );
-            }
-
-            return {
-              question: String(row.question).trim(),
-              questionText: String(row.question).trim(),
-              options: options,
-              correctAnswer: correctAnswerIndex, // Store as NUMBER index
-              marks: row.marks ? Number(row.marks) : 1,
-            };
-          });
-
-          if (parsedQuestions.length === 0) {
-            throw new Error("No valid questions found in the Excel file");
-          }
-
-          setQuestions(parsedQuestions);
-          setUploadError("");
-          console.log("Parsed questions:", parsedQuestions); // Debug log
-        } catch (error) {
-          setUploadError(`Error parsing file: ${error.message}`);
-          setQuestions([]);
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    }
-  };
-
-  const handleStudentSelect = (studentId) => {
-    setSelectedStudents((prev) =>
-      prev.includes(studentId)
-        ? prev.filter((id) => id !== studentId)
-        : [...prev, studentId]
-    );
-  };
-
-  const handleSelectAll = () => {
-    if (selectedStudents.length === students.length) {
-      setSelectedStudents([]);
-    } else {
-      setSelectedStudents(students.map((s) => s.id));
-    }
-  };
-
-  const handleCreateTest = async () => {
-    if (!testName.trim()) {
-      alert("Please enter a test name");
-      return;
-    }
-    if (questions.length === 0) {
-      alert("Please upload questions");
-      return;
-    }
-    if (selectedStudents.length === 0) {
-      alert("Please select at least one student");
-      return;
-    }
+    setQuestions([]);
+    setIsProcessing(true);
 
     try {
-      // Calculate total marks
-      const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
+      const workbook = new ExcelJS.Workbook();
+      const arrayBuffer = await file.arrayBuffer();
+      await workbook.xlsx.load(arrayBuffer);
 
-      const testData = {
-        testName: testName.trim(),
+      const sheet = workbook.worksheets[0];
+
+      console.log("📊 Sheet info:", {
+        name: sheet.name,
+        rowCount: sheet.rowCount,
+        columnCount: sheet.columnCount
+      });
+
+      // Build a map of cells that contain images (marked by #VALUE! error)
+      const imageCells = [];
+      sheet.eachRow((row, rowIndex) => {
+        row.eachCell((cell, colIndex) => {
+          if (cell.model && cell.model.value && typeof cell.model.value === 'object') {
+            if (cell.model.value.error === '#VALUE!') {
+              imageCells.push({
+                rowIndex,
+                colIndex,
+                key: `${rowIndex - 1}:${colIndex - 1}`
+              });
+              console.log(`🔍 Found #VALUE! error at cell [${rowIndex}, ${colIndex}] - likely an image`);
+            }
+          }
+        });
+      });
+
+      console.log(`📸 Found ${imageCells.length} cells with potential images`);
+      console.log(`📸 Total media items in workbook:`, workbook.model?.media?.length || 0);
+
+      // Extract and compress all images
+      const imageMap = {};
+      const compressionPromises = [];
+
+      if (workbook.model && workbook.model.media && workbook.model.media.length > 0) {
+        // Map each media item to the corresponding cell
+        // Since we can't directly correlate, we'll use position matching
+        imageCells.forEach((cellInfo, index) => {
+          // Try to match with media by index (assumes images are in order)
+          const mediaItem = workbook.model.media[index];
+          
+          if (mediaItem && mediaItem.buffer) {
+            const base64 = mediaItem.buffer.toString('base64');
+            const ext = mediaItem.extension || 'png';
+            const base64Data = `data:image/${ext};base64,${base64}`;
+            
+            console.log(`📸 Mapping media ${index} to cell ${cellInfo.key}`);
+            console.log(`   Original size: ${(base64Data.length / 1024).toFixed(2)} KB`);
+            
+            const promise = compressBase64Image(base64Data).then(compressed => {
+              console.log(`   ✅ Compressed to: ${(compressed.length / 1024).toFixed(2)} KB`);
+              imageMap[cellInfo.key] = compressed;
+            });
+            
+            compressionPromises.push(promise);
+          }
+        });
+      }
+
+      // Also handle anchored/floating images
+      const worksheetImages = sheet.getImages ? sheet.getImages() : [];
+      console.log("📸 Anchored images found:", worksheetImages.length);
+
+      for (let i = 0; i < worksheetImages.length; i++) {
+        const imgInfo = worksheetImages[i];
+        const mediaItem = workbook.model.media.find(m => m.index === imgInfo.imageId);
+        
+        if (mediaItem && mediaItem.buffer) {
+          const base64 = mediaItem.buffer.toString('base64');
+          const ext = mediaItem.extension || 'png';
+          const base64Data = `data:image/${ext};base64,${base64}`;
+
+          const promise = compressBase64Image(base64Data).then(compressed => {
+            const { tl, br } = imgInfo.range;
+            for (let r = tl.row; r <= br.row; r++) {
+              for (let c = tl.col; c <= br.col; c++) {
+                const key = `${r}:${c}`;
+                imageMap[key] = compressed;
+              }
+            }
+          });
+
+          compressionPromises.push(promise);
+        }
+      }
+
+      await Promise.all(compressionPromises);
+      console.log("\n✅ All images processed!");
+      console.log("📋 Final imageMap keys:", Object.keys(imageMap));
+
+      // Parse questions
+      const parsedQuestions = [];
+
+      sheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header
+
+        const getCellContent = (rowNum, colNum) => {
+          // Check for image in map (0-indexed)
+          const imgKey = `${rowNum - 1}:${colNum - 1}`;
+          if (imageMap[imgKey]) {
+            console.log(`🖼️ Using image for row ${rowNum}, col ${colNum}`);
+            return { type: "image", data: imageMap[imgKey] };
+          }
+
+          // Get cell value
+          const cell = sheet.getRow(rowNum).getCell(colNum);
+          let val = cell.value;
+
+          // Handle various cell value types
+          if (val && typeof val === 'object') {
+            // Skip #VALUE! errors (these are images we've already mapped)
+            if (val.error === '#VALUE!') {
+              console.log(`⚠️ Cell [${rowNum}, ${colNum}] has #VALUE! but no image mapped - returning empty`);
+              return { type: "text", data: "" };
+            }
+            
+            // Handle rich text
+            if (val.richText) {
+              val = val.richText.map(t => t.text).join('');
+            } else if (val.result !== undefined) {
+              val = val.result;
+            } else if (val.text !== undefined) {
+              val = val.text;
+            } else {
+              val = JSON.stringify(val);
+            }
+          }
+
+          const text = val ? String(val).trim() : "";
+
+          if (!text) {
+            return { type: "text", data: "" };
+          }
+
+          // Detect LaTeX
+          if (text.includes('\\') || text.includes('`')) {
+            return { 
+              type: "latex", 
+              data: text.replace(/`/g, '').replace(/^['"]|['"]$/g, '') 
+            };
+          }
+
+          return { type: "text", data: text };
+        };
+
+        const sno = getCellContent(rowNumber, 1).data;
+        const subject = getCellContent(rowNumber, 2).data;
+        const difficulty = getCellContent(rowNumber, 3).data;
+        const questionContent = getCellContent(rowNumber, 4);
+        
+        console.log(`\n📝 Question ${rowNumber - 1}:`);
+        
+        const optionA = getCellContent(rowNumber, 5);
+        const optionB = getCellContent(rowNumber, 6);
+        const optionC = getCellContent(rowNumber, 7);
+        const optionD = getCellContent(rowNumber, 8);
+
+        console.log(`   Options: A=${optionA.type}, B=${optionB.type}, C=${optionC.type}, D=${optionD.type}`);
+
+        const allOptionsEmpty = !optionA.data && !optionB.data && !optionC.data && !optionD.data;
+
+        const answerCell = getCellContent(rowNumber, 9);
+        const marks = Number(getCellContent(rowNumber, 10).data) || 1;
+        const imageCol = getCellContent(rowNumber, 11);
+        const formulaCol = getCellContent(rowNumber, 12);
+
+        let finalQuestion = questionContent;
+        if (imageCol.type === "image") {
+          finalQuestion = imageCol;
+        } else if (formulaCol.type === "latex" || formulaCol.data) {
+          finalQuestion = {
+            type: "combined",
+            text: questionContent,
+            formula: formulaCol
+          };
+        }
+
+        if (allOptionsEmpty) {
+          parsedQuestions.push({
+            sno,
+            subject,
+            difficulty,
+            question: finalQuestion,
+            questionType: "text",
+            correctAnswer: answerCell.data,
+            marks
+          });
+        } else {
+          const ans = String(answerCell.data).toLowerCase().trim();
+          let correctAnswer = 0;
+          if (["a", "b", "c", "d"].includes(ans)) {
+            correctAnswer = ans.charCodeAt(0) - 97;
+          } else if (!isNaN(ans)) {
+            correctAnswer = Number(ans) - 1;
+          }
+
+          parsedQuestions.push({
+            sno,
+            subject,
+            difficulty,
+            question: finalQuestion,
+            questionType: "mcq",
+            options: [optionA, optionB, optionC, optionD],
+            correctAnswer,
+            marks
+          });
+        }
+      });
+
+      console.log("\n✅ Total questions parsed:", parsedQuestions.length);
+      setQuestions(parsedQuestions);
+      setIsProcessing(false);
+
+      if (parsedQuestions.length === 0) {
+        setUploadError("No questions found");
+      }
+    } catch (err) {
+      console.error("❌ Error:", err);
+      setUploadError("Failed to parse: " + err.message);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleStudentSelect = (id) => {
+    setSelectedStudents((prev) =>
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+    );
+  };
+  
+  const handleSelectAll = () =>
+    selectedStudents.length === students.length
+      ? setSelectedStudents([])
+      : setSelectedStudents(students.map((s) => s.id));
+
+  const handleCreateTest = async () => {
+    if (!testName.trim()) return alert("Enter test name");
+    if (questions.length === 0) return alert("Upload questions first");
+    if (selectedStudents.length === 0) return alert("Select at least one student");
+
+    try {
+      const totalMarks = questions.reduce((sum, q) => sum + q.marks, 0);
+
+      await addDoc(collection(db, "tests"), {
+        testName,
         classId: classData.id,
         className: classData.name,
         section: classData.section,
@@ -191,35 +348,28 @@ const ClassDetails = () => {
         duration: testDuration,
         negativeMarking,
         negativeMarks: negativeMarking ? negativeMarks : 0,
-        questions: questions,
-        selectedStudents: selectedStudents,
-        totalMarks: totalMarks,
+        questions,
+        selectedStudents,
+        totalMarks,
         totalQuestions: questions.length,
         createdAt: serverTimestamp(),
         status: "active",
-      };
+      });
 
-      console.log("Creating test with data:", testData); // Debug log
-      await addDoc(collection(db, "tests"), testData);
-      
-      alert("Test created successfully!");
+      alert("Test created successfully! 🎉");
       setShowPopup(false);
-      resetForm();
-    } catch (error) {
-      console.error("Error creating test:", error);
-      alert("Failed to create test. Please try again.");
+      
+      setTestName("");
+      setTestDuration(30);
+      setNegativeMarking(false);
+      setNegativeMarks(0.25);
+      setSelectedStudents([]);
+      setQuestions([]);
+      setExcelFile(null);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create test: " + err.message);
     }
-  };
-
-  const resetForm = () => {
-    setTestName("");
-    setTestDuration(30);
-    setNegativeMarking(false);
-    setNegativeMarks(0.25);
-    setSelectedStudents([]);
-    setQuestions([]);
-    setExcelFile(null);
-    setUploadError("");
   };
 
   if (loading) return <div className="loading">Loading...</div>;
@@ -233,198 +383,169 @@ const ClassDetails = () => {
           <span>Back</span>
         </button>
         <h1>{classData.name} - {classData.section}</h1>
+
         <div className="class-info">
-          <span className="info-badge">
-            <span className="info-label">Grade:</span> {classData.grade}
-          </span>
-          <span className="info-badge">
-            <span className="info-label">Subject:</span> {classData.mappings?.[0]?.subject || "N/A"}
-          </span>
-          <span className="info-badge">
-            <span className="info-label">Total Students:</span> {students.length}
-          </span>
+          <span className="info-badge">Grade: {classData.grade}</span>
+          <span className="info-badge">Subject: {classData.mappings?.[0]?.subject}</span>
+          <span className="info-badge">Total Students: {students.length}</span>
         </div>
       </div>
 
       <div className="students-section">
         <div className="section-header">
           <div className="header-left">
-            <Users size={24} className="header-icon" />
+            <Users size={24} />
             <h2>Students List</h2>
           </div>
           <button className="conduct-test-btn" onClick={() => setShowPopup(true)}>
             <FileText size={20} />
-            <span>Conduct Test</span>
+            Conduct Test
           </button>
         </div>
 
         <div className="students-table-container">
-          {students.length === 0 ? (
-            <p className="no-data">No students enrolled in this class</p>
-          ) : (
-            <table className="students-table">
-              <thead>
-                <tr>
-                  <th>S.No</th>
-                  <th>Student ID</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Roll Number</th>
+          <table className="students-table">
+            <thead>
+              <tr>
+                <th>S.No</th><th>Student ID</th><th>Name</th><th>Email</th><th>Roll Number</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((s, i) => (
+                <tr key={s.id}>
+                  <td>{i + 1}</td>
+                  <td>{s.studentId}</td>
+                  <td>{s.name}</td>
+                  <td>{s.email || "N/A"}</td>
+                  <td>{s.rollNumber || "N/A"}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {students.map((student, index) => (
-                  <tr key={student.id}>
-                    <td>{index + 1}</td>
-                    <td>{student.studentId}</td>
-                    <td>{student.name}</td>
-                    <td>{student.email || "N/A"}</td>
-                    <td>{student.rollNumber || "N/A"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
       {showPopup && (
         <div className="popup-overlay" onClick={() => setShowPopup(false)}>
           <div className="popup-content" onClick={(e) => e.stopPropagation()}>
+            
             <div className="popup-header">
-              <div className="header-title">
-                <FileText size={28} />
-                <h2>Create New Test</h2>
-              </div>
-              <button className="close-btn" onClick={() => setShowPopup(false)}>
-                ×
-              </button>
+              <FileText size={28} />
+              <h2>Create New Test</h2>
+              <button className="close-btn" onClick={() => setShowPopup(false)}>×</button>
             </div>
 
             <div className="popup-body">
+
               <div className="form-group">
                 <label>Test Name *</label>
-                <input
+                <input 
                   type="text"
-                  value={testName}
+                  value={testName} 
                   onChange={(e) => setTestName(e.target.value)}
-                  placeholder="e.g., Unit Test 1"
-                  className="form-input"
+                  placeholder="e.g., Physics Mid-Term Exam"
                 />
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Duration (minutes) *</label>
-                  <input
-                    type="number"
-                    value={testDuration}
+                  <label>Duration (minutes)</label>
+                  <input 
+                    type="number" 
+                    value={testDuration} 
                     onChange={(e) => setTestDuration(Number(e.target.value))}
                     min="1"
-                    className="form-input"
                   />
                 </div>
 
-                <div className="form-group checkbox-group">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={negativeMarking}
-                      onChange={(e) => setNegativeMarking(e.target.checked)}
-                    />
-                    <span>Enable Negative Marking</span>
-                  </label>
-                </div>
+                <label className="checkbox-label">
+                  <input 
+                    type="checkbox" 
+                    checked={negativeMarking} 
+                    onChange={(e) => setNegativeMarking(e.target.checked)} 
+                  />
+                  Enable Negative Marking
+                </label>
               </div>
 
               {negativeMarking && (
                 <div className="form-group">
                   <label>Negative Marks (per wrong answer)</label>
-                  <input
-                    type="number"
-                    value={negativeMarks}
-                    onChange={(e) => setNegativeMarks(Number(e.target.value))}
-                    step="0.25"
-                    min="0"
-                    className="form-input"
+                  <input 
+                    type="number" 
+                    step="0.25" 
+                    value={negativeMarks} 
+                    onChange={(e) => setNegativeMarks(Number(e.target.value))} 
                   />
                 </div>
               )}
 
               <div className="form-group">
-                <label>Upload Questions (Excel) *</label>
-                <div className="file-upload-area">
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={handleFileUpload}
+                <label>Upload Questions Excel File *</label>
+                <div className="file-upload-wrapper">
+                  <input 
+                    type="file" 
+                    accept=".xlsx,.xls" 
+                    onChange={handleFileUpload} 
                     id="file-upload"
+                    className="file-input"
+                    disabled={isProcessing}
                   />
                   <label htmlFor="file-upload" className="file-upload-label">
                     <Upload size={20} />
-                    <span>{excelFile ? excelFile.name : "Choose Excel file"}</span>
+                    {isProcessing ? "Processing..." : excelFile ? excelFile.name : "Choose Excel File"}
                   </label>
                 </div>
-                <small className="helper-text">
-                  Format: question, option1, option2, option3, option4, answer (use "option1"/"a"/"1" or exact text), marks
-                </small>
-                {uploadError && (
-                  <p className="error-text">
-                    <XCircle size={16} />
-                    <span>{uploadError}</span>
+                {uploadError && <p className="error-text">{uploadError}</p>}
+                {isProcessing && (
+                  <p className="info-text" style={{color: '#ff9800'}}>
+                    ⏳ Processing images... Please wait.
                   </p>
                 )}
-                {questions.length > 0 && (
+                {questions.length > 0 && !isProcessing && (
                   <p className="success-text">
                     <CheckCircle size={16} />
-                    <span>{questions.length} questions loaded successfully</span>
+                    {questions.length} questions loaded! 🎉
                   </p>
                 )}
               </div>
 
               <div className="form-group">
-                <div className="students-header">
-                  <label>Select Students *</label>
-                  <button
-                    type="button"
-                    className="select-all-btn"
-                    onClick={handleSelectAll}
-                  >
-                    {selectedStudents.length === students.length
-                      ? "Deselect All"
-                      : "Select All"}
-                  </button>
-                </div>
-                <div className="students-list">
-                  {students.map((student) => (
-                    <label key={student.id} className="student-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={selectedStudents.includes(student.id)}
-                        onChange={() => handleStudentSelect(student.id)}
+                <label>Select Students *</label>
+                <button className="select-all-btn" onClick={handleSelectAll}>
+                  {selectedStudents.length === students.length ? "Deselect All" : "Select All"}
+                </button>
+
+                <div className="student-list">
+                  {students.map((s) => (
+                    <label key={s.id} className="student-checkbox">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedStudents.includes(s.id)} 
+                        onChange={() => handleStudentSelect(s.id)} 
                       />
-                      <span>{student.name} ({student.rollNumber || student.studentId})</span>
+                      <span>{s.name} ({s.rollNumber || s.studentId})</span>
                     </label>
                   ))}
                 </div>
-                <small className="helper-text">
-                  {selectedStudents.length} of {students.length} students selected
-                </small>
               </div>
             </div>
 
             <div className="popup-footer">
-              <button className="cancel-btn" onClick={() => setShowPopup(false)}>
-                Cancel
-              </button>
-              <button className="create-btn" onClick={handleCreateTest}>
-                <FileText size={18} />
-                <span>Create Test</span>
+              <button className="btn-cancel" onClick={() => setShowPopup(false)}>Cancel</button>
+              <button 
+                className="btn-create" 
+                onClick={handleCreateTest}
+                disabled={isProcessing || questions.length === 0}
+              >
+                <CheckCircle size={18} />
+                Create Test
               </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 };

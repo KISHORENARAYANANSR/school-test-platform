@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { db } from "../firebase";
 import { doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -13,9 +13,106 @@ import {
   FileText,
   TrendingUp,
   Home,
-  Eye
+  Eye,
+  Edit3
 } from "lucide-react";
 import "../styles/TestPage.css";
+
+// -------------------------------------------------------------------------
+// 🎨 CONTENT RENDERER COMPONENT - FIXED FOR IMAGES
+// -------------------------------------------------------------------------
+const ContentRenderer = ({ content }) => {
+  const contentRef = useRef(null);
+
+  useEffect(() => {
+    if (contentRef.current && content?.type === 'latex' && window.katex) {
+      try {
+        let latex = content.data.replace(/`/g, '').replace(/\$/g, '');
+        window.katex.render(latex, contentRef.current, {
+          throwOnError: false,
+          displayMode: true,
+        });
+      } catch (err) {
+        console.error('KaTeX rendering error:', err);
+      }
+    }
+  }, [content]);
+
+  // Handle null/undefined
+  if (!content) {
+    return <div className="content-text">No content</div>;
+  }
+
+  // If it's a plain string, just display it
+  if (typeof content === 'string') {
+    return <div className="content-text">{content}</div>;
+  }
+
+  // If it's not an object, convert to string
+  if (typeof content !== 'object') {
+    return <div className="content-text">{String(content)}</div>;
+  }
+
+  // Handle combined content (text + formula)
+  if (content.type === 'combined') {
+    return (
+      <div className="content-combined">
+        <ContentRenderer content={content.text} />
+        {content.formula && content.formula.data && (
+          <ContentRenderer content={content.formula} />
+        )}
+      </div>
+    );
+  }
+
+  // Handle image - CRITICAL FIX
+  if (content.type === 'image' && content.data) {
+    return (
+      <div className="content-image">
+        <img 
+          src={content.data} 
+          alt="Question Image" 
+          style={{ 
+            maxWidth: '100%', 
+            maxHeight: '400px',
+            height: 'auto', 
+            borderRadius: '8px',
+            display: 'block',
+            margin: '0 auto',
+            objectFit: 'contain'
+          }} 
+          onError={(e) => {
+            console.error('Image failed to load');
+            e.target.style.display = 'none';
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Handle LaTeX
+  if (content.type === 'latex') {
+    return (
+      <div className="content-latex" ref={contentRef}>
+        {content.data}
+      </div>
+    );
+  }
+
+  // Handle text type
+  if (content.type === 'text') {
+    return <div className="content-text">{content.data || ''}</div>;
+  }
+
+  // Fallback: If object has 'data' property, use it
+  if (content.data !== undefined) {
+    return <div className="content-text">{content.data}</div>;
+  }
+
+  // Last resort: show error message
+  console.error("Unknown content format:", content);
+  return <div className="content-text" style={{color: '#999', fontStyle: 'italic'}}>Content format error</div>;
+};
 
 const TestPage = () => {
   const { testId } = useParams();
@@ -28,6 +125,21 @@ const TestPage = () => {
   const [testSubmitted, setTestSubmitted] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const studentData = JSON.parse(sessionStorage.getItem("studentData"));
+
+  // Load KaTeX
+  useEffect(() => {
+    if (!window.katex) {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js';
+      script.async = true;
+      document.head.appendChild(script);
+
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
+      document.head.appendChild(link);
+    }
+  }, []);
 
   useEffect(() => {
     fetchTestData();
@@ -54,9 +166,9 @@ const TestPage = () => {
       const testDoc = await getDoc(doc(db, "tests", testId));
       if (testDoc.exists()) {
         const data = testDoc.data();
-        console.log("Fetched test data:", data); // Debug log
+        console.log("✅ Fetched test data:", data);
         setTestData(data);
-        setTimeRemaining(data.duration * 60); // Convert minutes to seconds
+        setTimeRemaining(data.duration * 60);
       }
       setLoading(false);
     } catch (error) {
@@ -68,7 +180,14 @@ const TestPage = () => {
   const handleAnswerSelect = (questionIndex, optionIndex) => {
     setAnswers({
       ...answers,
-      [questionIndex]: optionIndex, // Store as NUMBER
+      [questionIndex]: optionIndex,
+    });
+  };
+
+  const handleTextAnswerChange = (questionIndex, textValue) => {
+    setAnswers({
+      ...answers,
+      [questionIndex]: textValue,
     });
   };
 
@@ -78,55 +197,58 @@ const TestPage = () => {
     try {
       setTestSubmitted(true);
 
-      // Calculate score
       let correctAnswers = 0;
       let totalMarks = 0;
       let obtainedMarks = 0;
 
       const detailedAnswers = testData.questions.map((question, index) => {
-        const userAnswer = answers[index]; // This is a NUMBER (0, 1, 2, 3) or undefined
-        const correctAnswer = question.correctAnswer; // This should also be a NUMBER now
+        const userAnswer = answers[index];
+        const marks = question.marks || 1;
         
-        console.log(`Q${index + 1}: User=${userAnswer}, Correct=${correctAnswer}, Type: User=${typeof userAnswer}, Correct=${typeof correctAnswer}`);
+        totalMarks += marks;
         
-        // Compare as numbers - both should be numbers now
-        const isCorrect = userAnswer !== undefined && userAnswer === correctAnswer;
+        let isCorrect = false;
+
+        if (question.questionType === "text") {
+          const correctAnswer = question.correctAnswer;
+          if (userAnswer !== undefined && userAnswer !== null) {
+            const userAnswerStr = String(userAnswer).trim().toLowerCase();
+            const correctAnswerStr = String(correctAnswer).trim().toLowerCase();
+            isCorrect = userAnswerStr === correctAnswerStr;
+          }
+        } else {
+          const correctAnswer = question.correctAnswer;
+          isCorrect = userAnswer !== undefined && userAnswer === correctAnswer;
+        }
         
-        totalMarks += question.marks || 1;
         if (isCorrect) {
           correctAnswers++;
-          obtainedMarks += question.marks || 1;
+          obtainedMarks += marks;
+        } else if (userAnswer !== undefined && userAnswer !== null && testData.negativeMarking) {
+          obtainedMarks -= testData.negativeMarks || 0;
         }
 
         return {
           questionIndex: index,
-          questionText: question.question || question.questionText,
-          options: question.options,
-          userAnswer: userAnswer !== undefined ? userAnswer : null,
-          correctAnswer: correctAnswer,
+          questionText: question.question,
+          questionType: question.questionType || "mcq",
+          options: question.options || [],
+          userAnswer: userAnswer !== undefined && userAnswer !== null ? userAnswer : null,
+          correctAnswer: question.correctAnswer,
           isCorrect,
-          marks: question.marks || 1,
+          marks: marks,
         };
       });
 
-      const percentage = (obtainedMarks / totalMarks) * 100;
+      const percentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
 
-      console.log("Test Results:", {
-        correctAnswers,
-        totalQuestions: testData.questions.length,
-        percentage,
-        obtainedMarks,
-        totalMarks
-      });
-
-      // Save submission to Firestore
       const submissionData = {
         testId,
         testName: testData.testName,
         studentId: studentData.id,
         studentName: studentData.name,
         answers: detailedAnswers,
-        responses: detailedAnswers, // Add this for compatibility with MyResults
+        responses: detailedAnswers,
         score: percentage,
         correctAnswers,
         totalQuestions: testData.questions.length,
@@ -243,38 +365,57 @@ const TestPage = () => {
                   </span>
                 </div>
 
-                <div className="review-question-text">{answer.questionText}</div>
-
-                <div className="review-options">
-                  {answer.options.map((option, optIndex) => {
-                    const isUserAnswer = answer.userAnswer === optIndex;
-                    const isCorrectAnswer = answer.correctAnswer === optIndex;
-                    const isWrongAnswer = isUserAnswer && !answer.isCorrect;
-
-                    let className = "review-option";
-                    if (isCorrectAnswer) className += " correct-answer";
-                    if (isWrongAnswer) className += " wrong-answer";
-                    if (isUserAnswer && answer.isCorrect) className += " user-answer correct-answer";
-
-                    return (
-                      <div key={optIndex} className={className}>
-                        {isUserAnswer && !isCorrectAnswer && (
-                          <span className="option-label">Your Answer</span>
-                        )}
-                        {isCorrectAnswer && (
-                          <span className="option-label">Correct Answer</span>
-                        )}
-                        {option}
-                      </div>
-                    );
-                  })}
-                  {answer.userAnswer === null && (
-                    <div className="review-option wrong-answer">
-                      <span className="option-label">Not Answered</span>
-                      You didn't select any option
-                    </div>
-                  )}
+                <div className="review-question-text">
+                  <ContentRenderer content={answer.questionText} />
                 </div>
+
+                {answer.questionType === "text" ? (
+                  <div className="review-text-answer">
+                    <div className="text-answer-box">
+                      <strong>Your Answer:</strong>
+                      <span className={answer.isCorrect ? "correct-text" : "incorrect-text"}>
+                        {answer.userAnswer || "Not Answered"}
+                      </span>
+                    </div>
+                    {!answer.isCorrect && (
+                      <div className="text-answer-box correct-answer-box">
+                        <strong>Correct Answer:</strong>
+                        <span className="correct-text">{answer.correctAnswer}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="review-options">
+                    {answer.options && answer.options.map((option, optIndex) => {
+                      const isUserAnswer = answer.userAnswer === optIndex;
+                      const isCorrectAnswer = answer.correctAnswer === optIndex;
+                      const isWrongAnswer = isUserAnswer && !answer.isCorrect;
+
+                      let className = "review-option";
+                      if (isCorrectAnswer) className += " correct-answer";
+                      if (isWrongAnswer) className += " wrong-answer";
+                      if (isUserAnswer && answer.isCorrect) className += " user-answer correct-answer";
+
+                      return (
+                        <div key={optIndex} className={className}>
+                          {isUserAnswer && !isCorrectAnswer && (
+                            <span className="option-label">Your Answer</span>
+                          )}
+                          {isCorrectAnswer && (
+                            <span className="option-label">Correct Answer</span>
+                          )}
+                          <ContentRenderer content={option} />
+                        </div>
+                      );
+                    })}
+                    {answer.userAnswer === null && (
+                      <div className="review-option wrong-answer">
+                        <span className="option-label">Not Answered</span>
+                        You didn't select any option
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -334,7 +475,7 @@ const TestPage = () => {
                 key={index}
                 className={`question-nav-item ${
                   currentQuestionIndex === index ? "active" : ""
-                } ${answers[index] !== undefined ? "answered" : ""}`}
+                } ${answers[index] !== undefined && answers[index] !== null && answers[index] !== "" ? "answered" : ""}`}
                 onClick={() => setCurrentQuestionIndex(index)}
               >
                 {index + 1}
@@ -353,22 +494,42 @@ const TestPage = () => {
                 </span>
               </div>
 
-              <div className="question-text">{currentQuestion.question || currentQuestion.questionText}</div>
-
-              <div className="options-container">
-                {currentQuestion.options.map((option, index) => (
-                  <div
-                    key={index}
-                    className={`option-item ${
-                      answers[currentQuestionIndex] === index ? "selected" : ""
-                    }`}
-                    onClick={() => handleAnswerSelect(currentQuestionIndex, index)}
-                  >
-                    <div className="option-radio"></div>
-                    <span>{option}</span>
-                  </div>
-                ))}
+              <div className="question-text">
+                <ContentRenderer content={currentQuestion.question} />
               </div>
+
+              {currentQuestion.questionType === "text" ? (
+                <div className="text-input-container">
+                  <div className="input-label">
+                    <Edit3 size={18} />
+                    <span>Enter your answer:</span>
+                  </div>
+                  <input
+                    type="text"
+                    className="text-answer-input"
+                    placeholder="Type your answer here..."
+                    value={answers[currentQuestionIndex] || ""}
+                    onChange={(e) => handleTextAnswerChange(currentQuestionIndex, e.target.value)}
+                  />
+                </div>
+              ) : (
+                <div className="options-container">
+                  {currentQuestion.options && currentQuestion.options.map((option, index) => (
+                    <div
+                      key={index}
+                      className={`option-item ${
+                        answers[currentQuestionIndex] === index ? "selected" : ""
+                      }`}
+                      onClick={() => handleAnswerSelect(currentQuestionIndex, index)}
+                    >
+                      <div className="option-radio"></div>
+                      <div className="option-content">
+                        <ContentRenderer content={option} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="test-actions">
                 <div className="navigation-buttons">
